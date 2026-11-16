@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>연도별 가계 관리</title>
+<style>
+  :root {
+    --bg: #f4f6fa; --card: #ffffff; --text: #1d2433; --muted: #6b7489; --line: #e3e7ef;
+    --primary: #3563e9; --primary-weak: #e8eefd;
+    --income: #1f9d6a; --expense: #d9473f; --asset: #7b4fd6; --net: #3563e9;
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151c; --card: #1b2029; --text: #e7eaf1; --muted: #9aa3b5; --line: #2c3340;
+      --primary: #6b8cff; --primary-weak: #232c45;
+      --income: #3cc78f; --expense: #ff6b62; --asset: #a685ff; --net: #6b8cff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    font-size: 15px; line-height: 1.5;
+  }
+  header {
+    background: var(--card); border-bottom: 1px solid var(--line);
+    padding: 14px 16px; position: sticky; top: 0; z-index: 10;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  .top { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+  h1 { font-size: 19px; margin: 0; }
+  h1 small { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 6px; }
+  .year-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  main { padding: 16px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 16px; margin: 0 0 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card h2 .hint { font-size: 12px; font-weight: 400; color: var(--muted); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid2 > .card { margin-bottom: 0; }
+  .stack { display: grid; gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  @media (max-width: 760px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat { border-radius: 10px; padding: 12px; background: var(--bg); border: 1px solid var(--line); min-width: 0; }
+  .stat .label { font-size: 12px; color: var(--muted); }
+  .stat .value { font-size: 20px; font-weight: 700; word-break: break-all; }
+  .stat .value .u { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 2px; }
+  .stat .sub { font-size: 11px; color: var(--muted); min-height: 16px; }
+  .c-income { color: var(--income); } .c-expense { color: var(--expense); }
+  .c-asset { color: var(--asset); } .c-net { color: var(--net); } .c-neg { color: var(--expense); }
+
+  input, select, button { font: inherit; color: inherit; }
+  input, select {
+    background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; min-width: 0; width: 100%;
+  }
+  input:focus, select:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-color: transparent; }
+  select.year { width: auto; font-weight: 700; font-size: 16px; }
+  button {
+    border: 1px solid var(--line); background: var(--card); border-radius: 8px;
+    padding: 8px 12px; cursor: pointer; white-space: nowrap;
+  }
+  button:hover { border-color: var(--primary); }
+  button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  button.ghost-danger { color: var(--expense); }
+  button.icon { padding: 6px 10px; color: var(--muted); }
+  button.icon:hover { color: var(--expense); border-color: var(--expense); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+
+  .money { position: relative; }
+  .money input { text-align: right; padding-right: 44px; }
+  .money .unit { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px; pointer-events: none; }
+
+  .rows { display: grid; gap: 8px; }
+  .row { display: grid; gap: 8px; align-items: center; }
+  .row.income { grid-template-columns: 1fr 150px auto; }
+  .row.asset { grid-template-columns: 130px 1fr 150px auto; }
+  .row.head { font-size: 12px; color: var(--muted); }
+  @media (max-width: 520px) {
+    .row.income { grid-template-columns: 1fr 120px auto; }
+    .row.asset { grid-template-columns: 1fr 1fr auto; }
+    .row.asset .money { grid-column: 1 / 3; grid-row: 2; }
+    .row.asset > button { grid-row: 1 / 3; grid-column: 3; }
+    .row.asset.head > span:nth-child(3), .row.asset.head > span:nth-child(4) { display: none; }
+    .row.asset:not(.head) { padding-bottom: 8px; border-bottom: 1px dashed var(--line); }
+  }
+  .total-line { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-weight: 700; flex-wrap: wrap; gap: 4px; }
+  .empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
+  .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .note { font-size: 12px; color: var(--muted); }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 520px; }
+  th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; }
+  tr.current td { background: var(--primary-weak); font-weight: 700; }
+  tbody tr { cursor: pointer; }
+
+  .chart { display: grid; gap: 14px; margin-top: 14px; }
+  .chart-year { display: grid; grid-template-columns: 52px 1fr; gap: 8px; align-items: center; }
+  .chart-year .y { font-weight: 700; font-size: 13px; }
+  .bars { display: grid; gap: 3px; }
+  .bar { height: 12px; border-radius: 3px; min-width: 2px; }
+  .bar.i { background: var(--income); } .bar.e { background: var(--expense); } .bar.a { background: var(--asset); }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+    background: #222a; backdrop-filter: blur(6px); background: rgba(30,35,45,.92); color: #fff;
+    padding: 10px 16px; border-radius: 999px; font-size: 14px; opacity: 0; transition: .25s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex;
+    align-items: center; justify-content: center; padding: 16px; z-index: 100;
+  }
+  .modal-bg[hidden] { display: none; }
+  .modal { background: var(--card); border-radius: var(--radius); padding: 20px; width: 100%; max-width: 360px; box-shadow: 0 10px 40px rgba(0,0,0,.3); }
+  .modal p { margin: 0 0 12px; white-space: pre-line; }
+  .modal .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .welcome { text-align: center; padding: 40px 16px; }
+  .welcome p { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap top">
+    <h1>연도별 가계 관리 <small>단위: 만원</small></h1>
+    <div class="year-bar">
+      <select id="yearSelect" class="year" aria-label="연도 선택"></select>
+      <button id="addYearBtn" class="primary">+ 연도 추가</button>
+      <button id="delYearBtn" class="ghost-danger">연도 삭제</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="welcome" class="card welcome" hidden>
+    <h2 style="justify-content:center">시작하기</h2>
+    <p>관리할 연도를 먼저 추가해 주세요.</p>
+    <button id="welcomeAdd" class="primary">+ 올해(<span id="thisYear"></span>년) 추가</button>
+  </div>
+
+  <div id="yearView" hidden>
+    <section class="card">
+      <h2><span id="sumTitle">요약</span><span class="hint">모든 금액 단위: 만원</span></h2>
+      <div class="stats">
+        <div class="stat"><div class="label">수입 합계</div><div class="value c-income" id="sIncome"></div><div class="sub" id="sIncomeK"></div></div>
+        <div class="stat"><div class="label">지출</div><div class="value c-expense" id="sExpense"></div><div class="sub" id="sExpenseK"></div></div>
+        <div class="stat"><div class="label">순수익 (수입 − 지출)</div><div class="value" id="sNet"></div><div class="sub" id="sNetK"></div></div>
+        <div class="stat"><div class="label">자산 합계</div><div class="value c-asset" id="sAsset"></div><div class="sub" id="sAssetK"></div></div>
+      </div>
+    </section>
+
+    <div class="grid2" style="margin-bottom:16px">
+      <section class="card">
+        <h2>수입 <span class="hint" id="incomeCount"></span></h2>
+        <div class="rows" id="incomeRows"></div>
+        <div class="actions">
+          <button id="addIncomeBtn">+ 수입 항목 추가</button>
+          <span class="note">연간 금액으로 입력 (최대 10개)</span>
+        </div>
+        <div class="total-line"><span>수입 합계</span><span class="c-income" id="incomeTotal"></span></div>
+      </section>
+
+      <div class="stack" style="margin-bottom:0">
+        <section class="card" style="margin-bottom:0">
+          <h2>지출 <span class="hint">연간 총액</span></h2>
+          <label class="money">
+            <input id="expenseInput" type="number" inputmode="decimal" min="0" step="any" placeholder="0" aria-label="연간 지출 총액 (만원)">
+            <span class="unit">만원</span>
+          </label>
+          <div class="note" id="expenseK" style="margin-top:6px"></div>
+        </section>
+        <section class="card" style="margin-bottom:0">
+          <h2>순수익 <span class="hint">수입 합계 − 지출</span></h2>
+          <div class="value" id="netBig" style="font-size:24px;font-weight:700"></div>
+          <div class="note" id="netRate"></div>
+        </section>
+      </div>
+    </div>
+
+    <section class="card">
+      <h2>자산 <span class="hint">연말(또는 기준 시점) 보유액</span></h2>
+      <datalist id="assetTypes">
+        <option value="현금"><option value="예금"><option value="적금"><option value="주식">
+        <option value="펀드"><option value="채권"><option value="연금"><option value="부동산">
+        <option value="보험"><option value="가상자산"><option value="자동차"><option value="기타">
+      </datalist>
+      <div class="rows" id="assetRows"></div>
+      <div class="actions">
+        <button id="addAssetBtn">+ 자산 추가</button>
+        <button id="copyAssetBtn" title="직전 연도의 자산 목록을 그대로 가져옵니다">직전 연도 자산 복사</button>
+      </div>
+      <div id="assetByType" class="note" style="margin-top:10px"></div>
+      <div class="total-line"><span>자산 합계</span><span class="c-asset" id="assetTotal"></span></div>
+    </section>
+  </div>
+
+  <section class="card" id="compareCard" hidden>
+    <h2>연도별 비교 <span class="hint">행을 누르면 해당 연도로 이동 · 단위: 만원</span></h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>연도</th><th>수입 합계</th><th>지출</th><th>순수익</th><th>자산 합계</th><th>자산 증감</th></tr></thead>
+        <tbody id="compareBody"></tbody>
+      </table>
+    </div>
+    <div class="chart" id="chart"></div>
+    <div class="legend" style="margin-top:10px">
+      <span><i style="background:var(--income)"></i>수입</span>
+      <span><i style="background:var(--expense)"></i>지출</span>
+      <span><i style="background:var(--asset)"></i>자산</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>데이터 백업</h2>
+    <div class="actions" style="margin-top:0">
+      <button id="exportBtn">JSON 내보내기</button>
+      <button id="importBtn">JSON 가져오기</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+    </div>
+    <p class="note">데이터는 이 브라우저(localStorage)에 자동 저장됩니다. 다른 브라우저·기기로 옮기거나 백업하려면 내보내기를 이용하세요.</p>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-bg" id="modal" hidden>
+  <form class="modal" id="modalForm" role="dialog" aria-modal="true" aria-labelledby="modalMsg">
+    <p id="modalMsg"></p>
+    <input id="modalInput" type="number" inputmode="numeric" min="1900" max="2200" step="1">
+    <div class="btns">
+      <button type="button" id="modalCancel">취소</button>
+      <button type="submit" class="primary" id="modalOk">확인</button>
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var KEY = 'finance-manager-v1';
+  var MAX_INCOME = 10;
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------- 상태 ----------
+  var state = load();
+
+  function emptyYear() { return { income: [], expense: 0, assets: [] }; }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) {
+        var d = JSON.parse(raw);
+        if (d && typeof d.years === 'object') return normalize(d);
+      }
+    } catch (e) { /* 저장소 사용 불가 시 빈 상태 */ }
+    return { years: {}, current: null };
+  }
+
+  function normalize(d) {
+    var out = { years: {}, current: null };
+    Object.keys(d.years || {}).forEach(function (y) {
+      if (!/^\d{4}$/.test(y)) return;
+      var src = d.years[y] || {};
+      out.years[y] = {
+        income: (Array.isArray(src.income) ? src.income : []).slice(0, MAX_INCOME).map(function (it) {
+          return { name: String(it && it.name || ''), amount: num(it && it.amount) };
+        }),
+        expense: num(src.expense),
+        assets: (Array.isArray(src.assets) ? src.assets : []).map(function (it) {
+          return { type: String(it && it.type || ''), memo: String(it && it.memo || ''), amount: num(it && it.amount) };
+        })
+      };
+    });
+    var ys = sortedYears(out);
+    out.current = (d.current && out.years[d.current]) ? String(d.current) : (ys[ys.length - 1] || null);
+    return out;
+  }
+
+  var saveWarned = false;
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); }
+    catch (e) {
+      if (!saveWarned) {
+        saveWarned = true;
+        ask({ msg: '이 화면에서는 브라우저 저장이 막혀 있어 새로고침하면 입력한 내용이 사라집니다.\n파일을 크롬·엣지 등 일반 브라우저에서 열어 주세요. (작업 중 내용은 JSON 내보내기로 보관할 수 있습니다)', alertOnly: true });
+      }
+    }
+  }
+
+  function num(v) { var n = parseFloat(v); return isFinite(n) ? n : 0; }
+  function sortedYears(s) { return Object.keys((s || state).years).sort(); }
+  function cur() { return state.current ? state.years[state.current] : null; }
+
+  function totals(y) {
+    var inc = y.income.reduce(function (s, it) { return s + num(it.amount); }, 0);
+    var ast = y.assets.reduce(function (s, it) { return s + num(it.amount); }, 0);
+    var exp = num(y.expense);
+    return { income: round(inc), expense: round(exp), net: round(inc - exp), asset: round(ast) };
+  }
+  function round(n) { return Math.round(n * 100) / 100; }
+
+  // ---------- 포맷 ----------
+  function fmt(n) { return round(n).toLocaleString('ko-KR', { maximumFractionDigits: 2 }); }
+  function fmtU(n) { return fmt(n) + ' 만원'; }
+  function fmtHtml(n) { return esc(fmt(n)) + '<span class="u">만원</span>'; }
+  // 만원 → "1억 2,345만원" 표기
+  function korean(n) {
+    n = round(n);
+    var neg = n < 0; n = Math.abs(n);
+    if (n < 10000) return '';
+    var eok = Math.floor(n / 10000), man = round(n - eok * 10000);
+    var s = eok.toLocaleString('ko-KR') + '억' + (man ? ' ' + man.toLocaleString('ko-KR', { maximumFractionDigits: 2 }) + '만원' : ' 원');
+    if (!man) s = eok.toLocaleString('ko-KR') + '억 원';
+    return '≈ ' + (neg ? '−' : '') + s;
+  }
+  function signed(n) { return (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n)); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+  var toastTimer;
+  function toast(msg) {
+    var t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 1800);
+  }
+
+  // ---------- 대화상자 (브라우저 prompt/confirm 대신 사용) ----------
+  // opts: { msg, input: 기본값(있으면 입력칸 표시), ok: 버튼글자, danger: true/false }
+  var modalCb = null;
+  function ask(opts, cb) {
+    modalCb = cb;
+    $('modalMsg').textContent = opts.msg;
+    var inp = $('modalInput');
+    inp.hidden = opts.input === undefined;
+    inp.value = opts.input === undefined ? '' : opts.input;
+    $('modalCancel').hidden = !!opts.alertOnly;
+    $('modalOk').textContent = opts.ok || '확인';
+    $('modalOk').style.background = opts.danger ? 'var(--expense)' : '';
+    $('modalOk').style.borderColor = opts.danger ? 'var(--expense)' : '';
+    $('modal').hidden = false;
+    setTimeout(function () { (inp.hidden ? $('modalOk') : inp).focus(); if (!inp.hidden) inp.select(); }, 0);
+  }
+  function closeModal(ok) {
+    var cb = modalCb, val = $('modalInput').value;
+    modalCb = null; $('modal').hidden = true;
+    if (ok && cb) cb(val);
+  }
+  $('modalForm').addEventListener('submit', function (e) { e.preventDefault(); closeModal(true); });
+  $('modalCancel').addEventListener('click', function () { closeModal(false); });
+  $('modal').addEventListener('click', function (e) { if (e.target === $('modal')) closeModal(false); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('modal').hidden) closeModal(false); });
+
+  // ---------- 렌더 ----------
+  function renderAll() {
+    renderYearSelect();
+    var y = cur();
+    $('welcome').hidden = !!y;
+    $('yearView').hidden = !y;
+    $('delYearBtn').disabled = !y;
+    if (y) {
+      renderIncome();
+      $('expenseInput').value = y.expense ? y.expense : '';
+      renderAssets();
+      renderSummary();
+    }
+    renderCompare();
+  }
+
+  function renderYearSelect() {
+    var sel = $('yearSelect'), ys = sortedYears();
+    sel.innerHTML = ys.length ? ys.map(function (y) {
+      return '<option value="' + y + '"' + (y === state.current ? ' selected' : '') + '>' + y + '년</option>';
+    }).join('') : '<option value="">연도 없음</option>';
+    sel.disabled = !ys.length;
+  }
+
+  function renderSummary() {
+    var y = cur(), t = totals(y);
+    $('sumTitle').textContent = state.current + '년 요약';
+    $('sIncome').innerHTML = fmtHtml(t.income); $('sIncomeK').textContent = korean(t.income);
+    $('sExpense').innerHTML = fmtHtml(t.expense); $('sExpenseK').textContent = korean(t.expense);
+    $('sNet').innerHTML = fmtHtml(t.net); $('sNetK').textContent = korean(t.net);
+    $('sNet').className = 'value ' + (t.net < 0 ? 'c-neg' : 'c-net');
+    $('sAsset').innerHTML = fmtHtml(t.asset); $('sAssetK').textContent = korean(t.asset);
+    $('incomeTotal').textContent = fmtU(t.income);
+    $('assetTotal').textContent = fmtU(t.asset);
+    $('expenseK').textContent = korean(t.expense);
+    $('netBig').textContent = fmtU(t.net);
+    $('netBig').className = t.net < 0 ? 'c-neg' : 'c-net';
+    $('netRate').textContent = t.income > 0 ? '저축률 ' + (Math.round(t.net / t.income * 1000) / 10) + '%' : '';
+    $('incomeCount').textContent = y.income.length + ' / ' + MAX_INCOME + '개';
+    $('addIncomeBtn').disabled = y.income.length >= MAX_INCOME;
+
+    // 자산 종류별 합계
+    var by = {};
+    y.assets.forEach(function (a) { var k = a.type.trim() || '미분류'; by[k] = (by[k] || 0) + num(a.amount); });
+    var keys = Object.keys(by).sort(function (a, b) { return by[b] - by[a]; });
+    $('assetByType').innerHTML = keys.length > 1 ? '종류별: ' + keys.map(function (k) {
+      var pct = t.asset ? Math.round(by[k] / t.asset * 1000) / 10 : 0;
+      return esc(k) + ' ' + esc(fmt(by[k])) + '만원 (' + pct + '%)';
+    }).join(' · ') : '';
+    var ys = sortedYears(), idx = ys.indexOf(state.current);
+    $('copyAssetBtn').disabled = idx <= 0;
+  }
+
+  function moneyInput(val, label, field, idx) {
+    return '<label class="money"><input type="number" inputmode="decimal" min="0" step="any" placeholder="0" aria-label="' + label + ' (만원)" data-field="' + field + '" data-idx="' + idx + '" value="' + (val ? esc(val) : '') + '"><span class="unit">만원</span></label>';
+  }
+
+  function renderIncome() {
+    var y = cur(), box = $('incomeRows');
+    if (!y.income.length) { box.innerHTML = '<div class="empty">수입 항목이 없습니다. 예: 근로소득, 사업소득, 이자·배당 등</div>'; return; }
+    box.innerHTML = '<div class="row income head"><span>항목</span><span style="text-align:right">연간 금액</span><span></span></div>' +
+      y.income.map(function (it, i) {
+        return '<div class="row income">' +
+          '<input type="text" maxlength="30" placeholder="항목 이름" aria-label="수입 항목 이름" data-field="incName" data-idx="' + i + '" value="' + esc(it.name) + '">' +
+          moneyInput(it.amount, '수입 금액', 'incAmt', i) +
+          '<button class="icon" data-del="income" data-idx="' + i + '" aria-label="수입 항목 삭제">✕</button></div>';
+      }).join('');
+  }
+
+  function renderAssets() {
+    var y = cur(), box = $('assetRows');
+    if (!y.assets.length) { box.innerHTML = '<div class="empty">자산이 없습니다. 현금, 예금, 주식, 부동산 등을 추가하세요.</div>'; return; }
+    box.innerHTML = '<div class="row asset head"><span>종류</span><span>메모</span><span style="text-align:right">금액</span><span></span></div>' +
+      y.assets.map(function (it, i) {
+        return '<div class="row asset">' +
+          '<input type="text" list="assetTypes" maxlength="20" placeholder="종류" aria-label="자산 종류" data-field="astType" data-idx="' + i + '" value="' + esc(it.type) + '">' +
+          '<input type="text" maxlength="40" placeholder="메모 (예: ○○은행)" aria-label="자산 메모" data-field="astMemo" data-idx="' + i + '" value="' + esc(it.memo) + '">' +
+          moneyInput(it.amount, '자산 금액', 'astAmt', i) +
+          '<button class="icon" data-del="asset" data-idx="' + i + '" aria-label="자산 삭제">✕</button></div>';
+      }).join('');
+  }
+
+  function renderCompare() {
+    var ys = sortedYears();
+    $('compareCard').hidden = !ys.length;
+    if (!ys.length) return;
+    var prevAsset = null, rows = [], all = [];
+    ys.forEach(function (y) {
+      var t = totals(state.years[y]); all.push({ y: y, t: t });
+      var diff = prevAsset === null ? '–' : signed(t.asset - prevAsset);
+      rows.push('<tr data-year="' + y + '"' + (y === state.current ? ' class="current"' : '') + '>' +
+        '<td>' + y + '년</td>' +
+        '<td class="c-income">' + fmt(t.income) + '</td>' +
+        '<td class="c-expense">' + fmt(t.expense) + '</td>' +
+        '<td class="' + (t.net < 0 ? 'c-neg' : 'c-net') + '">' + fmt(t.net) + '</td>' +
+        '<td class="c-asset">' + fmt(t.asset) + '</td>' +
+        '<td>' + diff + '</td></tr>');
+      prevAsset = t.asset;
+    });
+    $('compareBody').innerHTML = rows.join('');
+    var max = all.reduce(function (m, r) { return Math.max(m, r.t.income, r.t.expense, r.t.asset); }, 0) || 1;
+    function w(v) { return Math.max(0, v) / max * 100; }
+    $('chart').innerHTML = all.map(function (r) {
+      return '<div class="chart-year"><div class="y">' + r.y + '</div><div class="bars">' +
+        '<div class="bar i" style="width:' + w(r.t.income) + '%" title="수입 ' + fmtU(r.t.income) + '"></div>' +
+        '<div class="bar e" style="width:' + w(r.t.expense) + '%" title="지출 ' + fmtU(r.t.expense) + '"></div>' +
+        '<div class="bar a" style="width:' + w(r.t.asset) + '%" title="자산 ' + fmtU(r.t.asset) + '"></div>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  // ---------- 이벤트 ----------
+  function addYear(year) {
+    year = String(year).trim();
+    if (!/^\d{4}$/.test(year) || +year < 1900 || +year > 2200) { toast('올바른 연도(예: 2025)를 입력하세요'); return; }
+    if (state.years[year]) { state.current = year; save(); renderAll(); toast(year + '년은 이미 있습니다'); return; }
+    state.years[year] = emptyYear();
+    state.current = year;
+    save(); renderAll(); toast(year + '년을 추가했습니다');
+  }
+
+  $('thisYear').textContent = new Date().getFullYear();
+  $('welcomeAdd').addEventListener('click', function () { addYear(new Date().getFullYear()); });
+  $('addYearBtn').addEventListener('click', function () {
+    var ys = sortedYears();
+    var suggest = ys.length ? (ys.indexOf(String(new Date().getFullYear())) < 0 ? new Date().getFullYear() : +ys[ys.length - 1] + 1) : new Date().getFullYear();
+    ask({ msg: '추가할 연도를 입력하세요 (예: 2025)', input: suggest, ok: '추가' }, addYear);
+  });
+  $('delYearBtn').addEventListener('click', function () {
+    if (!state.current) return;
+    var gone = state.current;
+    ask({ msg: gone + '년 데이터를 모두 삭제할까요?\n되돌릴 수 없습니다.', ok: '삭제', danger: true }, function () {
+      delete state.years[gone];
+      var ys = sortedYears(); state.current = ys[ys.length - 1] || null;
+      save(); renderAll(); toast(gone + '년을 삭제했습니다');
+    });
+  });
+  $('yearSelect').addEventListener('change', function (e) { state.current = e.target.value; save(); renderAll(); });
+  $('compareBody').addEventListener('click', function (e) {
+    var tr = e.target.closest('tr[data-year]'); if (!tr) return;
+    state.current = tr.getAttribute('data-year'); save(); renderAll();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  $('addIncomeBtn').addEventListener('click', function () {
+    var y = cur(); if (!y || y.income.length >= MAX_INCOME) { toast('수입 항목은 최대 ' + MAX_INCOME + '개입니다'); return; }
+    y.income.push({ name: '', amount: 0 }); save(); renderIncome(); renderSummary(); renderCompare();
+    var inputs = $('incomeRows').querySelectorAll('[data-field="incName"]'); inputs[inputs.length - 1].focus();
+  });
+  $('addAssetBtn').addEventListener('click', function () {
+    var y = cur(); if (!y) return;
+    y.assets.push({ type: '', memo: '', amount: 0 }); save(); renderAssets(); renderSummary(); renderCompare();
+    var inputs = $('assetRows').querySelectorAll('[data-field="astType"]'); inputs[inputs.length - 1].focus();
+  });
+  $('copyAssetBtn').addEventListener('click', function () {
+    var ys = sortedYears(), idx = ys.indexOf(state.current); if (idx <= 0) return;
+    var prev = state.years[ys[idx - 1]], y = cur();
+    if (!prev.assets.length) { toast(ys[idx - 1] + '년에 자산이 없습니다'); return; }
+    var doCopy = function () {
+      y.assets = prev.assets.map(function (a) { return { type: a.type, memo: a.memo, amount: a.amount }; });
+      save(); renderAssets(); renderSummary(); renderCompare(); toast(ys[idx - 1] + '년 자산을 복사했습니다');
+    };
+    if (y.assets.length) ask({ msg: '현재 자산 목록을 ' + ys[idx - 1] + '년 목록으로 바꿀까요?', ok: '바꾸기' }, doCopy);
+    else doCopy();
+  });
+
+  // 입력 변경 (위임) — 다시 그리지 않고 합계만 갱신해서 포커스를 유지
+  document.addEventListener('input', function (e) {
+    var el = e.target, f = el.getAttribute('data-field'), y = cur();
+    if (el.id === 'expenseInput' && y) { y.expense = Math.max(0, num(el.value)); }
+    else if (f && y) {
+      var i = +el.getAttribute('data-idx');
+      if (f === 'incName') y.income[i].name = el.value;
+      else if (f === 'incAmt') y.income[i].amount = Math.max(0, num(el.value));
+      else if (f === 'astType') y.assets[i].type = el.value;
+      else if (f === 'astMemo') y.assets[i].memo = el.value;
+      else if (f === 'astAmt') y.assets[i].amount = Math.max(0, num(el.value));
+    } else return;
+    save(); renderSummary(); renderCompare();
+  });
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-del]'); if (!b) return;
+    var y = cur(), i = +b.getAttribute('data-idx');
+    if (b.getAttribute('data-del') === 'income') { y.income.splice(i, 1); renderIncome(); }
+    else { y.assets.splice(i, 1); renderAssets(); }
+    save(); renderSummary(); renderCompare();
+  });
+
+  // ---------- 백업 ----------
+  $('exportBtn').addEventListener('click', function () {
+    var blob = new Blob([JSON.stringify({ app: 'finance-manager', version: 1, exportedAt: new Date().toISOString(), years: state.years, current: state.current }, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    var d = new Date(), pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    a.href = URL.createObjectURL(blob);
+    a.download = '가계관리_백업_' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    toast('백업 파일을 내보냈습니다');
+  });
+  $('importBtn').addEventListener('click', function () { $('importFile').click(); });
+  $('importFile').addEventListener('change', function (e) {
+    var file = e.target.files[0]; if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var d = JSON.parse(reader.result);
+        if (!d || typeof d.years !== 'object') throw new Error('형식 오류');
+        var nd = normalize(d), n = Object.keys(nd.years).length;
+        ask({ msg: n + '개 연도의 데이터를 가져옵니다.\n현재 데이터는 모두 바뀝니다. 계속할까요?', ok: '가져오기' }, function () {
+          state = nd; save(); renderAll(); toast('가져오기 완료 (' + n + '개 연도)');
+        });
+      } catch (err) { ask({ msg: '가져오기에 실패했습니다.\n이 앱에서 내보낸 JSON 파일인지 확인해 주세요.', alertOnly: true }); }
+      finally { e.target.value = ''; }
+    };
+    reader.readAsText(file, 'utf-8');
+  });
+
+  renderAll();
+})();
+</script>
+</body>
+</html>
